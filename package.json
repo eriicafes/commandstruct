@@ -2,7 +2,7 @@
   "name": "commandstruct",
   "version": "0.1.0",
   "description": "Type safe and modular CLIs with Sade",
-  "private": true,
+  "private": false,
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
