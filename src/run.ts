@@ -6,9 +6,9 @@ export type RunOptions = {
     onError?(err: any): void
 }
 
-export async function run(cli: Sade, options?: RunOptions, argv?: string[]) {
+export async function run(cli: Sade, options?: RunOptions, argv = process.argv) {
     try {
-        const output = cli.parse(argv ?? process.argv, {
+        const output = cli.parse(argv, {
             lazy: true,
             unknown: options?.errorOnUnknown === true
                 // will execute default unknown callback if true
@@ -16,11 +16,10 @@ export async function run(cli: Sade, options?: RunOptions, argv?: string[]) {
                 // executes provided callback or allows unknown if undefined
                 : options?.errorOnUnknown === false ? undefined : options?.errorOnUnknown,
         });
-        if (!output) return
         const res = await output.handler.apply(null, output.args)
         return res
     } catch (err) {
-        if (!process.exitCode) process.exitCode = 1
+        if (process.exitCode === undefined) process.exitCode = 1
         if (options?.onError) options.onError(err)
         else if (err instanceof CommandError) console.error("error:", err.message)
         else throw err
