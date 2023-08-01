@@ -16,6 +16,7 @@ export async function run(cli: Sade, options?: RunOptions, argv = process.argv) 
                 // executes provided callback or allows unknown if undefined
                 : options?.errorOnUnknown === false ? undefined : options?.errorOnUnknown,
         });
+        if (!output) return
         const res = await output.handler.apply(null, output.args)
         return res
     } catch (err) {

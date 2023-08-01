@@ -4,7 +4,7 @@ import path from "path"
 import { describe, expect, it, test } from "vitest"
 import { arg, createCommand, flag } from "../src"
 
-function execScript(file: "default" | "single", argv: string[]) {
+function execScript(file: "default" | "single" | "help", argv: string[]) {
     return spawnSync('pnpm', ["tsx", path.join(process.cwd(), "tests", "scripts", file), ...argv]);
 }
 
@@ -78,5 +78,12 @@ describe("Command", () => {
         expect(pid2.status).toBe(0);
         expect(pid2.stderr.length).toBe(0);
         expect(pid2.stdout.toString()).toBe("> echo foo from testing\n");
+    })
+
+    it("displays help message", async () => {
+        const pid = execScript("help", ["foo", "-h"]);
+        expect(pid.status).toBe(0);
+        expect(pid.stderr.length).toBe(0);
+        expect(pid.stdout.toString().trim().split("\n").at(-1)?.trim()).toBe("-h, --help    Displays this message")
     })
 })
