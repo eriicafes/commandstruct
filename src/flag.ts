@@ -1,82 +1,85 @@
-import { CamelToKebabCaseKey, OmitNegated, RequiredOrOptional } from "./utils/types"
+import { CamelToKebabCaseKey, KnownKey, MapUnion, Spread, StripNegated } from "./types"
 
 type ParamType = "string" | "number" | "array"
-type GetParamType<T extends ParamType> = T extends "string"
-    ? string
-    : T extends "number"
-    ? number
-    : T extends "array"
-    ? string[]
+type ParamTypeToValue<T extends ParamType> = MapUnion<T, {
+    string: string,
+    number: number,
+    array: string[],
+}>[T]
+
+type OptionalParam<T extends ParamType, D extends ParamTypeToValue<T> | undefined> = { _type: "optional", type: T, defaultValue: D }
+type RequiredParam<T extends ParamType> = { _type: "required", type: T }
+
+type FlagKey<F extends Record<string, Flag>, K extends keyof F> = F[K] extends Flag<infer TFlag>
+    // ? (TFlag["preserveCase"] extends true ? OmitNegated<K> : OmitNegated<CamelToKebabCaseKey<K>>) | (TFlag["char"] extends string ? TFlag["char"] : never)
+    ? (TFlag["preserveCase"] extends true ? StripNegated<K> : StripNegated<CamelToKebabCaseKey<K>>) | (TFlag["char"] extends string ? TFlag["char"] : never)
     : never
-type Param<Type extends ParamType, Required extends boolean> = {
-    type: Type
-    required: Required
-    default?: GetParamType<Type>
+
+type TFlag = { char?: string, param?: OptionalParam<any, any> | RequiredParam<any>, preserveCase?: boolean }
+type Replace<T, K extends keyof T, N extends T[K]> = Spread<Omit<T, K> & { [k in K]: N }>
+type Remove<T, K extends keyof T> = Spread<Omit<T, K>>
+
+export type ParsedFlags<Flags extends Record<string, Flag>> = {
+    [K in keyof Flags as KnownKey<FlagKey<Flags, K>>]: Flags[K] extends Flag<infer T>
+    ? T["param"] extends RequiredParam<infer Type> ? ParamTypeToValue<Type>
+    : T["param"] extends OptionalParam<infer Type, infer D> ? undefined extends D ? (ParamTypeToValue<Type> | undefined) : ParamTypeToValue<Type>
+    : T["param"] extends undefined ? boolean
+    : unknown extends T["param"] ? boolean
+    : boolean | number | string | string[]
+    : never
 }
-type FlagKey<F extends Record<string, Flag<any, any, any>>, K extends keyof F> = F[K] extends Flag<infer Char, any, infer PreserveCase>
-    ? (PreserveCase extends true ? OmitNegated<K> : OmitNegated<CamelToKebabCaseKey<K>>) | (Char extends string ? Char : never)
-    : never
 
-export type ParsedFlags<Flags extends Record<string, Flag<any, any, any>>> = {
-    [K in keyof Flags as FlagKey<Flags, K>]: Flags[K] extends Flag<any, infer P, any>
-    ? P extends Param<infer T, infer R> ? RequiredOrOptional<GetParamType<T>, R> : boolean
-    : never
-} & { ["_"]: string[] }
-
-export class Flag<
-    TChar extends string | undefined,
-    TParam extends Param<any, any> | undefined,
-    TPreserveCase extends boolean,
-> {
+export class Flag<T extends TFlag = TFlag> {
     public constructor(
         private _desc: string,
-        private _char: TChar,
-        private _param: TParam,
-        private _preserveCase: TPreserveCase,
+        private _char: T["char"],
+        private _param: T["param"],
+        private _preserveCase: T["preserveCase"],
         private _negate: string | undefined,
     ) { }
 
-    public char<C extends string>(char: C): Flag<C, TParam, TPreserveCase> {
-        this._char = char as unknown as TChar
-        return this as unknown as Flag<C, TParam, TPreserveCase>
+    public char<C extends string>(char: C): Flag<Replace<T, "char", C>> {
+        this._char = char as unknown as T["char"]
+        return this as unknown as Flag<Replace<T, "char", C>>
     }
 
-    public param<T extends ParamType, R extends boolean>(
-        options: { type: T, required: R, default?: GetParamType<T> },
-    ): Flag<TChar, Param<T, R>, TPreserveCase> {
-        this._negate = undefined
-        this._param = options as TParam
-        return this as Flag<TChar, Param<T, R>, TPreserveCase>
+    public requiredParam<U extends ParamType>(type: U): Flag<Replace<T, "param", RequiredParam<U>>> {
+        this._param = { _type: "required", type }
+        return this as Flag<Replace<T, "param", RequiredParam<U>>>
     }
 
-    public negate(description: string): Flag<TChar, undefined, TPreserveCase> {
+    public optionalParam<U extends ParamType, D extends ParamTypeToValue<U> | undefined = undefined>(type: U, defaultValue?: D): Flag<Replace<T, "param", OptionalParam<U, D>>> {
+        this._param = { _type: "optional", type, defaultValue }
+        return this as Flag<Replace<T, "param", OptionalParam<U, D>>>
+    }
+
+    public withNegated(description: string): Flag<Remove<T, "param">> {
         this._negate = description
-        this._param = undefined as TParam
-        return this as Flag<TChar, undefined, TPreserveCase>
+        return this
     }
 
-    public preserveCase(): Flag<TChar, TParam, true> {
-        this._preserveCase = true as TPreserveCase
-        return this as Flag<TChar, TParam, true>
+    public preserveCase(): Flag<Replace<T, "preserveCase", true>> {
+        this._preserveCase = true as T["preserveCase"]
+        return this as Flag<Replace<T, "preserveCase", true>>
     }
 
-    public static toObject(flag: Flag<any, any, any>) {
+    public static toObject(flag: Flag) {
         return {
             desc: flag._desc,
-            char: flag._char as string | undefined,
-            param: flag._param as Param<ParamType, boolean> | undefined,
+            char: flag._char,
+            param: flag._param,
             negate: flag._negate,
-            preserveCase: flag._preserveCase as boolean,
+            preserveCase: flag._preserveCase,
         }
     }
 
-    public static toString(flag: Flag<any, any, any>, name: string) {
+    public static toString(flag: Flag, name: string) {
         let str = `--${flag._preserveCase ? name : Flag.toKebabCase(name)}`
         if (flag._char) str = `-${flag._char}, ${str}`
         return str
     }
 
-    public static toNegatedString(flag: Flag<any, any, any>, name: string) {
+    public static toNegatedString(flag: Flag, name: string) {
         let str = `--no-${flag._preserveCase ? name : Flag.toKebabCase(name)}`
         return str
     }
@@ -98,5 +101,5 @@ export class Flag<
 }
 
 export function flag(description: string) {
-    return new Flag(description, undefined, undefined, false, undefined)
+    return new Flag<{}>(description, undefined, undefined, false, undefined)
 }

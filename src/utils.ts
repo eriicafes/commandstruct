@@ -1,10 +1,57 @@
+import { Sade } from "sade"
 import { Arg, ParsedArgs } from "./arg"
 import { CommandError } from "./errors"
 import { Flag, ParsedFlags } from "./flag"
 
-export function validateArguments<
-    Args extends Record<string, Arg<any, any>> = {},
-    Flags extends Record<string, Flag<any, any, any>> = {},
+export function registerFlags(program: Sade, flags: Record<string, Flag>) {
+    for (const [name, flag] of Object.entries(flags)) {
+        const flagObj = Flag.toObject(flag)
+        if (flagObj.char && flagObj.char.length > 1) {
+            throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} char cannot be more than 1 character`)
+        }
+        if (flagObj.param && flagObj.negate !== undefined) {
+            throw new CommandError("invalid_flag", `negated option ${name} ${"`" + Flag.toString(flag, name) + "`"} cannot have param`)
+        }
+        const key = flagObj.preserveCase ? name : Flag.toKebabCase(name)
+        if (Flag.isNegated(key)) {
+            if (flagObj.param) {
+                throw new CommandError("invalid_flag", `negated option ${name} ${"`" + Flag.toString(flag, name) + "`"} cannot have param`)
+            }
+            if (flagObj.char) {
+                throw new CommandError("invalid_flag", `negated option ${name} ${"`" + Flag.toString(flag, name) + "`"} cannot have char`)
+            }
+            const existingKey = flags[key.slice(3)]
+            if (existingKey && Flag.toObject(existingKey).param) {
+                throw new CommandError("invalid_flag", `negated option ${name} ${"`" + Flag.toString(flag, name) + "`"} can only be used with boolean flags`)
+            }
+        }
+        program.option(Flag.toString(flag, name), flagObj.desc, flagObj.negate && true)
+        if (flagObj.negate) {
+            program.option(Flag.toNegatedString(flag, name), flagObj.negate)
+        }
+    }
+}
+
+export function commandUsage(baseCmd: string | undefined, cmd: string, args: Record<string, Arg>) {
+    let usage = cmd
+    if (baseCmd) usage = baseCmd + " " + cmd
+
+    let hasOptional = false
+    for (const [name, arg] of Object.entries(args)) {
+        const argObj = Arg.toObject(arg)
+        if (argObj.type === "required" && hasOptional) {
+            throw new CommandError("invalid_arg", `required positional argument ${"`" + Arg.toString(arg, name) + "`"} cannot appear after an optional argument`)
+        }
+        hasOptional ||= argObj.type === "optional"
+        usage += " " + Arg.toString(arg, name)
+    }
+
+    return usage
+}
+
+export function commandContext<
+    Args extends Record<string, Arg> = {},
+    Flags extends Record<string, Flag> = {},
 >(args: Args, flags: Flags, fnArgs: any[]) {
     // get args from function arguments and convert to object
     const parsedArgs = Object.keys(args).reduce((acc, name, index) => {
@@ -13,7 +60,9 @@ export function validateArguments<
     }, {} as ParsedArgs<Args>)
 
     // get flags from last function argument
-    const parsedFlags = fnArgs[fnArgs.length - 1] as ParsedFlags<Flags>
+    const { _, ...opts } = fnArgs[fnArgs.length - 1]
+    const restArgs = _ as string[]
+    const parsedFlags = opts as ParsedFlags<Flags>
 
     // validate flags
     for (const [name, flag] of Object.entries(flags)) {
@@ -22,10 +71,21 @@ export function validateArguments<
         const value = parsedFlags[key]
 
         if (!flagObj.param) {
+            // delete negated keys
+            if (flagObj.negate || Flag.isNegated(key as string)) {
+                const negatedKey = (flagObj.negate ? `no-${key as string}` : key) as keyof ParsedFlags<Flags>
+                delete parsedFlags[negatedKey]
+            }
             // set missing boolean flags to false
             if (value === undefined) {
                 // ignore negated flags
-                if (Flag.isNegated(flagObj.preserveCase ? name : Flag.toKebabCase(name))) continue
+                if (Flag.isNegated(key as string)) {
+                    const negatedKey = (key as string).slice(3) as keyof ParsedFlags<Flags>
+                    if (parsedFlags[negatedKey] === undefined) {
+                        parsedFlags[negatedKey] = true as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                    }
+                    continue
+                }
                 parsedFlags[key] = false as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
                 if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = false as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
             } else if (typeof value !== "boolean") {
@@ -37,10 +97,11 @@ export function validateArguments<
         }
 
         if (value === undefined) {
-            if (!flagObj.param.required) continue
-            if (flagObj.param.default !== undefined) {
-                parsedFlags[key] = flagObj.param.default as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
-                if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = flagObj.param.default as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+            if (flagObj.param._type === "optional") {
+                if (flagObj.param.defaultValue !== undefined) {
+                    parsedFlags[key] = flagObj.param.defaultValue as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                    if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = flagObj.param.defaultValue as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                }
                 continue
             }
             throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} value is missing`)
@@ -49,7 +110,7 @@ export function validateArguments<
         if (flagObj.param.type === "string" && typeof value !== "string") {
             if (typeof value !== "object") {
                 // fail if no value was passed to flag
-                if (value === true) throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} value is missing`)
+                if (value === true || value === undefined) throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} value is missing`)
 
                 const parsedValue = String(value) as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
                 // modify flag fields including char field if available
@@ -87,9 +148,9 @@ export function validateArguments<
                 if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = parsedValue
             } else {
                 // check if value is a string instead of array
-                if (typeof value === "object") throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} value is not an array`)
+                if (typeof value === "object" || value === true) throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} value is not an array`)
                 // parsed value is an array containing just that string
-                const parsedValue = [value === true ? "" : String(value)] as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                const parsedValue = [String(value)] as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
                 // modify flag fields including char field if available
                 parsedFlags[key] = parsedValue
                 if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = parsedValue
@@ -100,5 +161,6 @@ export function validateArguments<
     return {
         args: parsedArgs,
         flags: parsedFlags,
+        restArgs,
     }
 }

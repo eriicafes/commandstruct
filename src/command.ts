@@ -1,183 +1,185 @@
-import { InitFactory } from "hollywood-di"
+import { AnyHollywood, ContainerOptions, Hollywood, HollywoodOf, InferContainer, RegisterTokens } from "hollywood-di"
 import { Sade } from "sade"
 import { Arg, ParsedArgs } from "./arg"
-import { CommandError } from "./errors"
 import { Flag, ParsedFlags } from "./flag"
-import { CombineInitFactoryDeps, Spread } from "./utils/types"
-import { validateArguments } from "./validate"
+import { Merge, Spread } from "./types"
+import { commandContext, commandUsage, registerFlags } from "./utils"
 
-export type Command<
-    Name extends string,
-    Args extends Record<string, Arg<any, any>>,
-    Flags extends Record<string, Flag<any, any, any>>,
-    Container extends Record<string, any>,
-    Single extends boolean,
-> = InitFactory<Container, CommandDef<Name, Args, Flags, Single>>
-
-export type ActionContext<A extends Record<string, Arg<any, any>>, F extends Record<string, Flag<any, any, any>>, C extends Record<string, any>> = {
-    args: Spread<ParsedArgs<A>>
-    flags: Spread<ParsedFlags<F>>
-    container: C
+type SubcommandOptions<
+    ProgramFlags extends Record<string, Flag>,
+    Deps extends Record<string, any>,
+> = {
+    program: Sade,
+    programFlags: ProgramFlags,
+    baseCmd?: string | undefined,
+    defaultCmd?: Subcommand<any, any>,
+    container: {} extends Deps ? HollywoodOf<Deps> | undefined : HollywoodOf<Deps>,
 }
 
-class CommandDef<
+export type Subcommand<ProgramFlags extends Record<string, Flag>, Deps extends Record<string, any>> = {
+    command: (options: SubcommandOptions<ProgramFlags, Deps>) => void
+}
+
+type CommandOptions<
     Name extends string,
-    Args extends Record<string, Arg<any, any>>,
-    Flags extends Record<string, Flag<any, any, any>>,
-    Single extends boolean,
+    Args extends Record<string, Arg>,
+    Flags extends Record<string, Flag>,
+    ProgramFlags extends Record<string, Flag>,
+    Deps extends Record<string, any>,
+    Container extends AnyHollywood | undefined,
+    Instances extends Container extends AnyHollywood ? InferContainer<Container> : Deps,
+> = {
+    name: Name
+    description: string | undefined
+    aliases: string[]
+    examples: string[]
+    args: Args
+    flags: Flags
+    action: (
+        ctx: { args: Spread<ParsedArgs<Args>>, flags: Spread<ParsedFlags<Merge<Flags, ProgramFlags>>>, restArgs: string[] },
+        container: Instances,
+    ) => any | Promise<any>
+    subcommands: [{ tokens: RegisterTokens<any, any>, options?: ContainerOptions } | undefined, Subcommand<ProgramFlags, Instances>[]][]
+}
+
+export type AnyCommand = Command<any, any, any, any, any>
+
+export class Command<
+    Name extends string,
+    Args extends Record<string, Arg>,
+    Flags extends Record<string, Flag>,
+    ProgramFlags extends Record<string, Flag>,
+    Deps extends Record<string, any>,
 > {
-    constructor(
-        public name: Name,
-        public description: string | undefined,
-        public isSingle: Single,
-        public isDefault: boolean,
-        public aliases: string[],
-        public examples: string[],
-        public version: string | undefined = undefined,
-        public help: string | undefined = undefined,
-        public args: Args,
-        public flags: Flags,
-        public subcommands: Command<`${Name} ${string}`, any, any, any, Single>[],
-        public action: (context: Pick<ActionContext<Args, Flags, any>, "args" | "flags">) => any | Promise<any>,
-    ) { }
+    constructor(private options: CommandOptions<Name, Args, Flags, ProgramFlags, Deps, any, any>) { }
 
-    public getCommandName() {
-        // validate command arguments
-        let hasOptional = false, hasVariadic = false
-        const argsNames = Object.entries(this.args).map(([name, arg]) => {
-            const argObj = Arg.toObject(arg)
-            if (hasVariadic) {
-                throw new CommandError("invalid_arg", `positional argument ${"`" + Arg.toString(arg, name) + "`"} cannot appear after a variadic argument`)
-            }
-            if (argObj.required && hasOptional) {
-                throw new CommandError("invalid_arg", `required positional argument ${"`" + Arg.toString(arg, name) + "`"} cannot appear after an optional argument`)
-            }
-            hasOptional ||= !argObj.required
-            hasVariadic ||= argObj.variadic
-            return Arg.toString(arg, name)
-        }).join(" ")
+    public command(options: SubcommandOptions<ProgramFlags, Deps>) {
+        const { program, programFlags, baseCmd, defaultCmd, container: parentContainer } = options
+        const command = program.command(commandUsage(baseCmd, this.options.name, this.options.args), this.options.description, {
+            default: defaultCmd && defaultCmd === this
+        })
+        if (this.options.aliases.length) command.alias(...this.options.aliases)
+        for (const example of this.options.examples) command.example(example)
 
-        return `${this.name} ${argsNames}`.trim()
-    }
+        registerFlags(program, this.options.flags)
 
-    public setupCommand(command: Sade) {
-        // add command examples
-        for (const example of this.examples) command.example(example)
-
-        // register option flags
-        for (const [name, flag] of Object.entries(this.flags)) {
-            const flagObj = Flag.toObject(flag)
-            if (flagObj.char && flagObj.char.length > 1) {
-                throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} char cannot be more than 1 character`)
-            }
-            command.option(Flag.toString(flag, name), flagObj.desc, flagObj.negate && true)
-            if (flagObj.negate) {
-                command.option(Flag.toNegatedString(flag, name), flagObj.negate)
+        let container = parentContainer
+        const subcommandTasks: (() => void)[] = []
+        for (const [tokens, subcommands] of this.options.subcommands) {
+            let subContainer = container
+            if (tokens && subContainer) subContainer = Hollywood.createWithParent(subContainer, tokens.tokens, tokens.options)
+            else if (tokens) subContainer = Hollywood.create(tokens.tokens, tokens.options)
+            container = subContainer
+            for (const subcommand of subcommands) {
+                subcommandTasks.push(() => {
+                    subcommand.command({
+                        program,
+                        programFlags,
+                        baseCmd: `${baseCmd ? baseCmd + " " + this.options.name : this.options.name}`,
+                        defaultCmd: defaultCmd === this ? undefined : defaultCmd,
+                        container: subContainer,
+                    })
+                })
             }
         }
 
+        const instances = container?.instances ?? {}
         command.action((...fnArgs) => {
-            const validated = validateArguments(this.args, this.flags, fnArgs)
-            return this.action(validated)
+            const { flags, ...context } = commandContext(this.options.args, { ...programFlags, ...this.options.flags }, fnArgs)
+            return this.options.action({ ...context, flags: flags as unknown as ParsedFlags<Merge<Flags, ProgramFlags>> }, instances)
         })
+        for (const task of subcommandTasks) task()
     }
 }
 
 class CommandBuilder<
     Name extends string,
-    Args extends Record<string, Arg<any, any>>,
-    Flags extends Record<string, Flag<any, any, any>>,
-    Container extends Record<string, any>,
-    Subcommands extends Command<`${Name} ${string}`, any, any, any, Single>[],
-    Single extends boolean,
+    Args extends Record<string, Arg>,
+    Flags extends Record<string, Flag>,
+    ProgramFlags extends Record<string, Flag>,
+    Deps extends Record<string, any>,
+    Container extends AnyHollywood | undefined,
 > {
-    private _description: string | undefined = undefined
-    private _isDefault: boolean = false
-    private _aliases: string[] = []
-    private _examples: string[] = []
-    private _version: string | undefined = undefined
-    private _help: string | undefined = undefined
-    private _subcommands: Command<`${Name} ${string}`, any, any, any, Single>[] = []
-    private _args: Record<string, Arg<any, any>> = {}
-    private _flags: Record<string, Flag<any, any, any>> = {}
+    private options: Omit<CommandOptions<Name, Args, Flags, ProgramFlags, Deps, Container, Container extends AnyHollywood ? InferContainer<Container> : Deps>, "action">
 
-    constructor(public name: Name, public isSingle: Single) { }
-
-    public describe(text: string) {
-        this._description = text
-        return this
-    }
-
-    public isDefault() {
-        this._isDefault = true
-        return this
-    }
-
-    public addAlias(...aliases: string[]) {
-        this._aliases.push(...aliases)
-        return this
-    }
-
-    public addExample(example: string) {
-        this._examples.push(example)
-        return this
-    }
-
-    public version(version: Single extends true ? string : never) {
-        this._version = version
-        return this
-    }
-
-    public help(help: Single extends true ? string : never) {
-        this._help = help
-        return this
-    }
-
-    public subcommands<S extends Command<`${Name} ${string}`, any, any, any, Single>[]>(
-        ...commands: Single extends true ? never : S
-    ): CommandBuilder<Name, Args, Flags, Container, S, Single> {
-        this._subcommands = commands
-        return this as unknown as CommandBuilder<Name, Args, Flags, Container, S, Single>
-    }
-
-    public args<A extends Record<string, Arg<any, any>>>(args: A): CommandBuilder<Name, A, Flags, Container, Subcommands, Single> {
-        this._args = args
-        return this as unknown as CommandBuilder<Name, A, Flags, Container, Subcommands, Single>
-    }
-
-    public flags<F extends Record<string, Flag<any, any, any>>>(flags: F): CommandBuilder<Name, Args, F, Container, Subcommands, Single> {
-        this._flags = flags
-        return this as unknown as CommandBuilder<Name, Args, F, Container, Subcommands, Single>
-    }
-
-    public action<C extends Record<string, any> = {}>(
-        actionFn: (context: ActionContext<Args, Flags, C>) => any | Promise<any>
-    ): Command<Name, Args, Flags, Spread<C & CombineInitFactoryDeps<Subcommands>>, Single> {
-        return {
-            init: (container) => {
-                return new CommandDef(
-                    this.name,
-                    this._description,
-                    this.isSingle,
-                    this._isDefault,
-                    this._aliases,
-                    this._examples,
-                    this._version,
-                    this._help,
-                    this._args as Args,
-                    this._flags as Flags,
-                    this._subcommands,
-                    (ctx) => actionFn({ ...ctx, container }),
-                )
-            }
+    constructor(name: Name) {
+        this.options = {
+            name,
+            description: undefined,
+            aliases: [],
+            examples: [],
+            args: {} as Args,
+            flags: {} as Flags,
+            subcommands: [],
         }
     }
+
+    public describe(description: string) {
+        this.options.description = description
+        return this
+    }
+
+    public alias(...aliases: string[]) {
+        this.options.aliases.push(...aliases)
+        return this
+    }
+
+    public example(example: string) {
+        this.options.examples.push(example)
+        return this
+    }
+
+    public args<A extends Record<string, Arg> extends Args ? Record<string, Arg> : never>(args: A) {
+        this.options.args = args as unknown as Args
+        return this as unknown as Record<string, Arg> extends Args ? CommandBuilder<Name, A, Flags, ProgramFlags, Deps, Container> : never
+    }
+
+    public flags<F extends Record<string, Flag> extends Flags ? Record<string, Flag> : never>(flags: F) {
+        this.options.flags = flags as unknown as Flags
+        return this as unknown as Record<string, Flag> extends Flags ? CommandBuilder<Name, Args, F, ProgramFlags, Deps, Container> : never
+    }
+
+    public useFlags<F extends Record<string, Flag> extends ProgramFlags ? Record<string, Flag> : never>() {
+        return this as unknown as Record<string, Flag> extends ProgramFlags ? CommandBuilder<Name, Args, Flags, F, Deps, Container> : never
+    }
+
+    public use<C extends Container extends AnyHollywood ? never : Record<string, any>>() {
+        return this as unknown as Container extends AnyHollywood ? never : CommandBuilder<Name, Args, Flags, ProgramFlags, Spread<C>, Hollywood<Spread<C>, any>>
+    }
+
+    public provide<T extends Record<string, any> = {}>(
+        tokens: RegisterTokens<T, Container extends AnyHollywood ? InferContainer<Container> : {}>,
+        options?: ContainerOptions,
+    ) {
+        this.options.subcommands.push([{ tokens, options }, []])
+        return this as unknown as CommandBuilder<Name, Args, Flags, ProgramFlags, Deps, Container extends AnyHollywood ? Hollywood<T, InferContainer<Container>> : Hollywood<T, {}>>
+    }
+
+    public subcommands<C extends Subcommand<ProgramFlags, Container extends AnyHollywood ? InferContainer<Container> : Deps>[]>(
+        ...commands: C
+    ) {
+        if (!this.options.subcommands.length) this.options.subcommands.push([undefined, []])
+        const [, subcommands] = this.options.subcommands[this.options.subcommands.length - 1]
+        subcommands.push(...commands)
+        return this
+    }
+
+    public action(
+        fn: (
+            ctx: { args: Spread<ParsedArgs<Args>>, flags: Spread<ParsedFlags<Merge<Flags, ProgramFlags>>>, restArgs: string[] },
+            container: Container extends AnyHollywood ? InferContainer<Container> : {},
+        ) => any | Promise<any>
+    ) {
+        return new Command<
+            Name,
+            Args,
+            Flags,
+            ProgramFlags,
+            Deps
+        >({ ...this.options, action: fn })
+    }
 }
 
-export function createCommand<Name extends string>(name: Name): CommandBuilder<Name, {}, {}, {}, [], false> {
-    return new CommandBuilder(name, false)
-}
-
-export function createSingleCommand<Name extends string>(name: Name): CommandBuilder<Name, {}, {}, {}, [], true> {
-    return new CommandBuilder(name, true)
+export function createCommand<Name extends string>(name: Name): CommandBuilder<Name, {}, {}, {}, {}, undefined> {
+    return new CommandBuilder(name)
 }
