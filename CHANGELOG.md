@@ -1,5 +1,11 @@
 # commandstruct
 
+## 0.3.0
+
+### Minor Changes
+
+- 88f131a: Update API
+
 ## 0.2.0
 
 ### Minor Changes
