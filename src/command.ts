@@ -2,7 +2,7 @@ import { AnyHollywood, ContainerOptions, Hollywood, HollywoodOf, InferContainer,
 import { Sade } from "sade"
 import { Arg, ParsedArgs } from "./arg"
 import { Flag, ParsedFlags } from "./flag"
-import { KnownMappedKeys, Merge, Spread } from "./types"
+import { IsEmptyObject, KnownMappedKeys, Merge, Spread } from "./types"
 import { commandContext, commandUsage, registerFlags } from "./utils"
 
 type SubcommandOptions<
@@ -13,7 +13,7 @@ type SubcommandOptions<
     programFlags: ProgramFlags,
     baseCmd?: string | undefined,
     defaultCmd?: Subcommand<any, any>,
-    container: {} extends Deps ? HollywoodOf<Deps> | undefined : HollywoodOf<Deps>,
+    container: IsEmptyObject<Deps> extends true ? HollywoodOf<any> | undefined : HollywoodOf<Deps>,
 }
 
 export type Subcommand<ProgramFlags extends Record<string, Flag>, Deps extends Record<string, any>> = {
@@ -77,7 +77,7 @@ export class Command<
                         programFlags,
                         baseCmd: `${baseCmd ? baseCmd + " " + this.options.name : this.options.name}`,
                         defaultCmd: defaultCmd === this ? undefined : defaultCmd,
-                        container: subContainer,
+                        container: subContainer as HollywoodOf<any>,
                     })
                 })
             }

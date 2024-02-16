@@ -1,7 +1,8 @@
-import { InitFactory } from "hollywood-di"
+import { InitFactory } from "hollywood-di";
 
 export type Spread<T> = { [K in keyof T]: T[K] } & {}
 export type Merge<T, To> = T & Omit<To, keyof T>
+export type IsEmptyObject<T> = keyof T extends never ? true : false
 
 type IsCapitalized<T extends string> = Uncapitalize<T> extends T ? false : true
 export type CamelToKebabCaseKey<T extends PropertyKey, A extends string = ""> = T extends string

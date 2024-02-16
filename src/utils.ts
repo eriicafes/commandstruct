@@ -57,44 +57,42 @@ export function commandContext<
     Flags extends Record<string, Flag> = {},
 >(args: Args, flags: Flags, fnArgs: any[]) {
     // get args from function arguments and convert to object
-    const parsedArgs = Object.keys(args).reduce((acc, name, index) => {
-        acc[name as keyof ParsedArgs<Args>] = fnArgs[index]
+    const _args = Object.keys(args).reduce((acc, name, index) => {
+        acc[name] = fnArgs[index]
         return acc
-    }, {} as ParsedArgs<Args>)
+    }, {} as any)
 
     // get flags from last function argument
     const { _, ...opts } = fnArgs[fnArgs.length - 1]
-    const restArgs = _ as string[]
-    const parsedFlags = opts as ParsedFlags<Flags>
 
     // validate flags
     for (const [name, flag] of Object.entries(flags)) {
         const flagObj = Flag.toObject(flag)
-        const key = (flagObj.preserveCase ? name : Flag.toKebabCase(name)) as keyof ParsedFlags<Flags>
-        const value = parsedFlags[key]
+        const key = (flagObj.preserveCase ? name : Flag.toKebabCase(name))
+        const value = opts[key]
 
         if (!flagObj.param) {
             // delete negated keys
-            if (flagObj.negate || Flag.isNegated(key as string)) {
-                const negatedKey = (flagObj.negate ? `no-${key as string}` : key) as keyof ParsedFlags<Flags>
-                delete parsedFlags[negatedKey]
+            if (flagObj.negate || Flag.isNegated(key)) {
+                const negatedKey = (flagObj.negate ? `no-${key}` : key)
+                delete opts[negatedKey]
             }
             // set missing boolean flags to false
             if (value === undefined) {
-                // ignore negated flags
-                if (Flag.isNegated(key as string)) {
-                    const negatedKey = (key as string).slice(3) as keyof ParsedFlags<Flags>
-                    if (parsedFlags[negatedKey] === undefined) {
-                        parsedFlags[negatedKey] = true as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                // handle negated flags specially
+                if (Flag.isNegated(key)) {
+                    const negatedKey = (key).slice(3)
+                    if (opts[negatedKey] === undefined) {
+                        opts[negatedKey] = true
                     }
                     continue
                 }
-                parsedFlags[key] = false as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
-                if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = false as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                opts[key] = false
+                if (flagObj.char) opts[flagObj.char] = false
             } else if (typeof value !== "boolean") {
                 // set boolean flag to true for any value that is not a boolean or undefined
-                parsedFlags[key] = true as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
-                if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = true as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                opts[key] = true
+                if (flagObj.char) opts[flagObj.char] = true
             }
             continue
         }
@@ -102,8 +100,8 @@ export function commandContext<
         if (value === undefined) {
             if (flagObj.param._type === "optional") {
                 if (flagObj.param.defaultValue !== undefined) {
-                    parsedFlags[key] = flagObj.param.defaultValue as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
-                    if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = flagObj.param.defaultValue as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                    opts[key] = flagObj.param.defaultValue
+                    if (flagObj.char) opts[flagObj.char] = flagObj.param.defaultValue
                 }
                 continue
             }
@@ -115,17 +113,17 @@ export function commandContext<
                 // fail if no value was passed to flag
                 if (value === true || value === undefined) throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} value is missing`)
 
-                const parsedValue = String(value) as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                const parsedValue = String(value)
                 // modify flag fields including char field if available
-                parsedFlags[key] = parsedValue
-                if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = parsedValue
+                opts[key] = parsedValue
+                if (flagObj.char) opts[flagObj.char] = parsedValue
             } else if (Array.isArray(value)) {
                 // get last element of array
                 const val = value[value.length - 1]
-                const parsedValue = (val === true ? "" : String(val)) as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                const parsedValue = (val === true ? "" : String(val))
                 // modify flag fields including char field if available
-                parsedFlags[key] = parsedValue
-                if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = parsedValue
+                opts[key] = parsedValue
+                if (flagObj.char) opts[flagObj.char] = parsedValue
             } else {
                 throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} value is not a string`)
             }
@@ -133,37 +131,37 @@ export function commandContext<
 
         if (flagObj.param.type === "number" && typeof value !== "number") {
             // parse value to number
-            const parsedValue = Number(value) as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+            const parsedValue = Number(value)
             // throw error if parsing fails
             if (typeof value !== "string" || Number.isNaN(parsedValue)) {
                 throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} value is not a number`)
             }
             // modify flag fields including char field if available
-            parsedFlags[key] = parsedValue
-            if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = parsedValue
+            opts[key] = parsedValue
+            if (flagObj.char) opts[flagObj.char] = parsedValue
         }
 
         if (flagObj.param.type === "array") {
             if (Array.isArray(value)) {
-                const parsedValue = value.map((val) => val === true ? "" : String(val)) as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                const parsedValue = value.map((val) => val === true ? "" : String(val))
                 // modify flag fields including char field if available
-                parsedFlags[key] = parsedValue
-                if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = parsedValue
+                opts[key] = parsedValue
+                if (flagObj.char) opts[flagObj.char] = parsedValue
             } else {
                 // check if value is a string instead of array
                 if (typeof value === "object" || value === true) throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} value is not an array`)
                 // parsed value is an array containing just that string
-                const parsedValue = [String(value)] as ParsedFlags<Flags>[keyof ParsedFlags<Flags>]
+                const parsedValue = [String(value)]
                 // modify flag fields including char field if available
-                parsedFlags[key] = parsedValue
-                if (flagObj.char) parsedFlags[flagObj.char as keyof ParsedFlags<Flags>] = parsedValue
+                opts[key] = parsedValue
+                if (flagObj.char) opts[flagObj.char] = parsedValue
             }
         }
     }
 
     return {
-        args: parsedArgs,
-        flags: parsedFlags,
-        restArgs,
+        args: _args as ParsedArgs<Args>,
+        flags: opts as ParsedFlags<Flags>,
+        restArgs: _ as string[],
     }
 }
