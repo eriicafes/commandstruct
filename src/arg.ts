@@ -1,44 +1,36 @@
-import { RequiredOrOptional } from "./utils/types"
+import { KnownKey, MapUnion } from "./types"
 
-export type ParsedArgs<Args extends Record<string, Arg<any, any>>> = {
-    [K in keyof Args]: Args[K] extends Arg<infer R, infer V>
-    ? V extends true ? RequiredOrOptional<string[], R> : RequiredOrOptional<string, R>
-    : never
+type ArgType = "required" | "optional"
+
+type ArgTypeToValue<T extends ArgType> = MapUnion<T, {
+    required: string,
+    optional: string | undefined,
+}>[T]
+
+export type ParsedArgs<Args extends Record<string, Arg>> = {
+    [K in keyof Args as KnownKey<K>]: Args[K] extends Arg<infer T> ? ArgTypeToValue<T> : never
 }
 
-export class Arg<
-    TRequired extends boolean,
-    TVariadic extends boolean,
-> {
-    public constructor(
-        private _required: TRequired,
-        private _variadic: TVariadic,
-    ) { }
+export class Arg<T extends ArgType = ArgType> {
+    public constructor(private _type: T) { }
 
-    public optional(): Arg<false, TVariadic> {
-        this._required = false as TRequired
-        return this as Arg<false, TVariadic>
+    public optional(): Arg<"optional"> {
+        this._type = "optional" as T
+        return this as Arg<"optional">
     }
 
-    public variadic(): Arg<TRequired, true> {
-        this._variadic = true as TVariadic
-        return this as Arg<TRequired, true>
-    }
-
-    public static toObject(arg: Arg<any, any>) {
+    public static toObject(arg: Arg) {
         return {
-            required: arg._required as boolean,
-            variadic: arg._variadic as boolean,
+            type: arg._type,
         }
     }
 
-    public static toString(arg: Arg<any, any>, name: string) {
-        if (arg._variadic) name = `...${name}`
-        if (arg._required) return `<${name}>`
+    public static toString(arg: Arg, name: string) {
+        if (arg._type === "required") return `<${name}>`
         else return `[${name}]`
     }
 }
 
 export function arg() {
-    return new Arg(true, false)
+    return new Arg("required")
 }

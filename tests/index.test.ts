@@ -1,82 +1,66 @@
-import { spawnSync } from 'child_process'
-import { factory, Hollywood } from "hollywood-di"
-import path from "path"
-import { describe, expect, it, test } from "vitest"
-import { arg, createCommand, flag } from "../src"
-
-function execScript(file: "default" | "single", argv: string[]) {
-    return spawnSync('pnpm', ["tsx", path.join(process.cwd(), "tests", "scripts", file), ...argv]);
-}
+import { beforeEach, describe, expect, it, test, vi } from "vitest";
+import { createCommand, createProgram, createSingleProgram } from '../src';
+import { withArgv } from "./utils";
 
 describe("Command", () => {
-    test("command action can access args flags and context", () => {
-        const container = Hollywood.create({
-            env: factory(() => "testing"),
+    it("executes command", () => {
+        const fooAction = vi.fn()
+        const fooCmd = createCommand("foo").action(fooAction)
+        const cli = createProgram("test").commands(fooCmd).build()
+
+        cli.run(undefined, withArgv("foo"))
+        expect(fooAction).toBeCalledTimes(1)
+    })
+
+    it("executes in single program mode", () => {
+        const action = vi.fn()
+        const cli = createSingleProgram("test").action(action)
+
+        cli.run(undefined, withArgv(""))
+        expect(action).toBeCalledTimes(1)
+    })
+
+    it("executes subcommand", () => {
+        const fooAction = vi.fn(), barAction = vi.fn()
+        const barCmd = createCommand("bar").action(barAction)
+        const fooCmd = createCommand("foo").subcommands(barCmd).action(fooAction)
+        const cli = createProgram("test").commands(fooCmd).build()
+
+        cli.run(undefined, withArgv("foo bar"))
+        expect(fooAction).toBeCalledTimes(0)
+        expect(barAction).toBeCalledTimes(1)
+    })
+
+    describe("executes default command", () => {
+        const fooAction = vi.fn(), barAction = vi.fn()
+        const fooCmd = createCommand("foo").action(fooAction)
+        const barCmd = createCommand("bar").action(barAction)
+
+        beforeEach(() => {
+            fooAction.mockReset()
+            barAction.mockReset()
         })
 
-        const echoCmd = createCommand("echo")
-            .subcommands()
-            .args({
-                target: arg(),
-            })
-            .flags({
-                verbose: flag(""),
-            })
-            .action<{ env: string }>((ctx) => {
-                return {
-                    isVerbose: ctx.flags.verbose,
-                    env: ctx.container.env,
-                    result: ctx.args.target,
-                }
-            })
+        test("with default first", () => {
+            const cli = createProgram("test")
+                .commands(fooCmd, barCmd)
+                .default(fooCmd)
+                .build()
 
-        const res = container.resolve(echoCmd).action({
-            args: { target: "hello" },
-            flags: { verbose: false, _: [] },
+            cli.run(undefined, withArgv(""))
+            expect(fooAction).toBeCalledTimes(1)
+            expect(barAction).toBeCalledTimes(0)
         })
 
-        expect(res).toStrictEqual({
-            isVerbose: false,
-            env: container.instances.env,
-            result: "hello",
+        test("with default last", () => {
+            const cli = createProgram("test")
+                .commands(barCmd, fooCmd)
+                .default(fooCmd)
+                .build()
+
+            cli.run(undefined, withArgv(""))
+            expect(fooAction).toBeCalledTimes(1)
+            expect(barAction).toBeCalledTimes(0)
         })
-    })
-
-    it("executes commands", async () => {
-        const pid = execScript("default", ["hello"]);
-        expect(pid.status).toBe(0);
-        expect(pid.stderr.length).toBe(0);
-        expect(pid.stdout.toString()).toBe("world\n");
-
-        const pid2 = execScript("default", ["foo"]);
-        expect(pid2.status).toBe(0);
-        expect(pid2.stderr.length).toBe(0);
-        expect(pid2.stdout.toString()).toBe("bar\n");
-    })
-
-    it("executes subcommand", async () => {
-        const pid = execScript("default", ["foo", "bar"]);
-        expect(pid.status).toBe(0);
-        expect(pid.stderr.length).toBe(0);
-        expect(pid.stdout.toString()).toBe("testing baz\n");
-    })
-
-    it("executes default command", async () => {
-        const pid = execScript("default", []);
-        expect(pid.status).toBe(0);
-        expect(pid.stderr.length).toBe(0);
-        expect(pid.stdout.toString()).toBe("world\n");
-    })
-
-    it("executes in single command mode", async () => {
-        const pid = execScript("single", ["foo"]);
-        expect(pid.status).toBe(0);
-        expect(pid.stderr.length).toBe(0);
-        expect(pid.stdout.toString()).toBe("echo foo from testing\n");
-
-        const pid2 = execScript("single", ["foo", "-d"]);
-        expect(pid2.status).toBe(0);
-        expect(pid2.stderr.length).toBe(0);
-        expect(pid2.stdout.toString()).toBe("> echo foo from testing\n");
     })
 })
