@@ -4,7 +4,7 @@
 
 Commandstruct is a simple and powerful tool for building fast and typesafe command-line applications.
 
-It supports CLI commands, sub-commands, positional arguments and flags. It also supports dependency injection using [Hollywood](https://github.com/eriicafes/hollywood-di).
+It supports CLI commands, sub-commands, positional arguments and flags. It also supports dependency injection using [Hollywood DI](https://github.com/eriicafes/hollywood-di).
 
 ## Installation
 
@@ -262,13 +262,14 @@ createCommand("example")
     // flags.bar is true by default (default not shown in description)
   });
 
-// NOTE: noFoo is converted to kebab-case, if it's case was preserved it would not count as a negated flag.
+// NOTE: noFoo is converted to kebab-case
+// if it's case was preserved it would not count as a negated flag.
 ```
 
-You may not be able to use only negated flag if run option `errorOnUnknown` is true.
+You may not be able to use only negated flag if you enable the `errorOnUnknown` run option.
 
 ```ts
-// existing flag and negated flag
+// both existing flag and negated flag
 createCommand("example")
   .flags({
     foo: flag("foo description"),
@@ -307,7 +308,7 @@ const prog = createProgram("test").flags(programFlags).commands(cmd).build();
 
 ## Use
 
-Define command dependencies. The command can then only be added as a command or subcommand to a program/command that satisfies it's dependencies. The command dependencies can be accessed in the command action and when calling `provide` on the command.
+Define command dependencies. The command can then only be added as a command or subcommand to a program/command that satisfies it's dependencies. The command dependencies can be accessed in the command action.
 
 You can only call `use` once and only before calling `provide`.
 
@@ -346,11 +347,14 @@ const prog = createProgram("test")
 Provide creates a new child container. Registered tokens can then be used in the commmand action and in futher calls to `provide`. See more about register tokens in [Hollywood DI](https://github.com/eriicafes/hollywood-di#tokens).
 
 ```ts
+import { defineInit } from "hollywood-di";
+import { createCommand } from "commandstruct";
+
 class Foo {}
 class Bar {
   public static init = defineInit(Bar).args("foo");
 
-  constructor(public bar: Bar) {}
+  constructor(public foo: Foo) {}
 }
 
 const cmd = createCommand("example")
@@ -422,6 +426,9 @@ At the core commandstruct is designed to work with [Hollywood DI](https://github
 A root container can also be passed to the program.
 
 ```ts
+import { Hollywood, defineInit } from "hollywood-di";
+import { createCommand, createProgram } from "commandstruct";
+
 class Foo {}
 class Bar {
   public static init = defineInit(Bar).args("foo");
