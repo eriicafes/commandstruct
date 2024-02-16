@@ -150,6 +150,19 @@ const cmd = createCommand("commit")
   });
 ```
 
+## Default Command
+
+You can make any command or subcommand the default command. This will execute that command when no command was passed to the program.
+
+```ts
+import { commitCmd, pushCmd } from "./commands";
+
+const prog = createProgram("nogit")
+  .commands(commitCmd, pushCmd)
+  .default(commitCmd) // commitCmd will be executed by default
+  .build();
+```
+
 ## Args
 
 Positional arguments are declared in the order they should be provided. Optional arguments must be placed after required arguments.
