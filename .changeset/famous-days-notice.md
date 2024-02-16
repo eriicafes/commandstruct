@@ -1,0 +1,5 @@
+---
+"commandstruct": minor
+---
+
+Update API

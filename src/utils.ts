@@ -6,8 +6,8 @@ import { Flag, ParsedFlags } from "./flag"
 export function registerFlags(program: Sade, flags: Record<string, Flag>) {
     for (const [name, flag] of Object.entries(flags)) {
         const flagObj = Flag.toObject(flag)
-        if (flagObj.char && flagObj.char.length > 1) {
-            throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} char cannot be more than 1 character`)
+        if (flagObj.char !== undefined && flagObj.char.length !== 1) {
+            throw new CommandError("invalid_flag", `option ${"`" + Flag.toString(flag, name) + "`"} char must be 1 character`)
         }
         if (flagObj.param && flagObj.negate !== undefined) {
             throw new CommandError("invalid_flag", `negated option ${name} ${"`" + Flag.toString(flag, name) + "`"} cannot have param`)
@@ -17,8 +17,11 @@ export function registerFlags(program: Sade, flags: Record<string, Flag>) {
             if (flagObj.param) {
                 throw new CommandError("invalid_flag", `negated option ${name} ${"`" + Flag.toString(flag, name) + "`"} cannot have param`)
             }
-            if (flagObj.char) {
+            if (flagObj.char !== undefined) {
                 throw new CommandError("invalid_flag", `negated option ${name} ${"`" + Flag.toString(flag, name) + "`"} cannot have char`)
+            }
+            if (flagObj.negate !== undefined) {
+                throw new CommandError("invalid_flag", `negated option ${name} ${"`" + Flag.toString(flag, name) + "`"} is already negated`)
             }
             const existingKey = flags[key.slice(3)]
             if (existingKey && Flag.toObject(existingKey).param) {
@@ -26,7 +29,7 @@ export function registerFlags(program: Sade, flags: Record<string, Flag>) {
             }
         }
         program.option(Flag.toString(flag, name), flagObj.desc, flagObj.negate && true)
-        if (flagObj.negate) {
+        if (flagObj.negate !== undefined) {
             program.option(Flag.toNegatedString(flag, name), flagObj.negate)
         }
     }

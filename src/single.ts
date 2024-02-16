@@ -3,7 +3,7 @@ import sade, { Sade } from "sade"
 import { Arg, ParsedArgs } from "./arg"
 import { Flag, ParsedFlags } from "./flag"
 import { run, RunOptions } from "./run"
-import { Spread } from "./types"
+import { KnownMappedKeys, Spread } from "./types"
 import { commandContext, commandUsage, registerFlags } from "./utils"
 
 type SingleProgramOptions<
@@ -114,7 +114,7 @@ class SingleProgramBuilder<
     public action(
         fn: (
             ctx: { args: Spread<ParsedArgs<Args>>, flags: Spread<ParsedFlags<Flags>>, restArgs: string[] },
-            container: Container extends AnyHollywood ? InferContainer<Container> : {},
+            container: Container extends AnyHollywood ? KnownMappedKeys<InferContainer<Container>> : {},
         ) => any | Promise<any>
     ) {
         return new SingleProgram<Name, Args, Flags, Container>({ ...this.options, action: fn })

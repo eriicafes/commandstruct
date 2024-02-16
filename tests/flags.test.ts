@@ -107,7 +107,7 @@ describe("Flags", () => {
         expect(() => {
             const barCmd = createCommand("foo").flags({ color: flag("").char("co") }).action(() => { })
             createProgram("test").commands(barCmd).build().program()
-        }).toThrow("char cannot be more than 1 character")
+        }).toThrow("char must be 1 character")
     })
 
     it("preserves flag casing when specified", () => {
@@ -144,6 +144,17 @@ describe("Flags", () => {
                     .action(() => { })
                 createProgram("test").commands(cmd).build().program()
             }).toThrow("cannot have param")
+        })
+
+        it("throws on negated flags with witNegated", () => {
+            expect(() => {
+                const cmd = createCommand("foo")
+                    .flags({
+                        noBar: flag("").withNegated(""),
+                    })
+                    .action(() => { })
+                createProgram("test").commands(cmd).build().program()
+            }).toThrow("is already negated")
         })
 
         it("throws on negated flags with existing param flag", () => {

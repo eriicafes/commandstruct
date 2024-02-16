@@ -6,8 +6,8 @@ settings:
 
 dependencies:
   hollywood-di:
-    specifier: '>= 0.5.1'
-    version: 0.5.1
+    specifier: '>= 0.5.2'
+    version: 0.5.2
   sade:
     specifier: '>= 1.8.1'
     version: 1.8.1
@@ -1855,8 +1855,8 @@ packages:
       function-bind: 1.1.1
     dev: true
 
-  /hollywood-di@0.5.1:
-    resolution: {integrity: sha512-VtddRF8343cOZhuCxz5Zb6MsH5HHmL0d9WDpsefYXS/c2Ac9+HF9wbg6MrPJaQau4RNTz80ZIGdCB92jF2PhKQ==}
+  /hollywood-di@0.5.2:
+    resolution: {integrity: sha512-e4zVYz+Q0ExJnOTsX3MPy8vJLXcX5CmrmK5y1hY66quOq0AHJJE/G3Vw7ZHa/Z0Ac7aFjnRVpakAQwOjWsbykA==}
     dev: false
 
   /hosted-git-info@2.8.9:

@@ -2,7 +2,7 @@ import { AnyHollywood, ContainerOptions, Hollywood, HollywoodOf, InferContainer,
 import { Sade } from "sade"
 import { Arg, ParsedArgs } from "./arg"
 import { Flag, ParsedFlags } from "./flag"
-import { Merge, Spread } from "./types"
+import { KnownMappedKeys, Merge, Spread } from "./types"
 import { commandContext, commandUsage, registerFlags } from "./utils"
 
 type SubcommandOptions<
@@ -167,7 +167,7 @@ class CommandBuilder<
     public action(
         fn: (
             ctx: { args: Spread<ParsedArgs<Args>>, flags: Spread<ParsedFlags<Merge<Flags, ProgramFlags>>>, restArgs: string[] },
-            container: Container extends AnyHollywood ? InferContainer<Container> : {},
+            container: Container extends AnyHollywood ? KnownMappedKeys<InferContainer<Container>> : {},
         ) => any | Promise<any>
     ) {
         return new Command<
