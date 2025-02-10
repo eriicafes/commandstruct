@@ -1,5 +1,11 @@
 # commandstruct
 
+## 0.3.1
+
+### Patch Changes
+
+- 66e7d91: Update dependencies
+
 ## 0.3.0
 
 ### Minor Changes
