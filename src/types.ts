@@ -1,31 +1,39 @@
-import { InitFactory } from "hollywood-di";
+export type Spread<T> = { [K in keyof T]: T[K] } & {};
+export type Merge<T, To> = T & Omit<To, keyof T>;
+export type IsEmptyObject<T> = keyof T extends never ? true : false;
 
-export type Spread<T> = { [K in keyof T]: T[K] } & {}
-export type Merge<T, To> = T & Omit<To, keyof T>
-export type IsEmptyObject<T> = keyof T extends never ? true : false
-
-type IsCapitalized<T extends string> = Uncapitalize<T> extends T ? false : true
-export type CamelToKebabCaseKey<T extends PropertyKey, A extends string = ""> = T extends string
-    ? T extends `${infer P}${infer S}`
-    ? Uncapitalize<S extends "" ? `${A}${P}` : IsCapitalized<S> extends true ? `${A}${P}-${CamelToKebabCaseKey<Uncapitalize<S>>}` : CamelToKebabCaseKey<S, `${A}${P}`>>
+type IsCapitalized<T extends string> = Uncapitalize<T> extends T ? false : true;
+export type CamelToKebabCaseKey<
+  T extends PropertyKey,
+  A extends string = ""
+> = T extends string
+  ? T extends `${infer P}${infer S}`
+    ? Uncapitalize<
+        S extends ""
+          ? `${A}${P}`
+          : IsCapitalized<S> extends true
+          ? `${A}${P}-${CamelToKebabCaseKey<Uncapitalize<S>>}`
+          : CamelToKebabCaseKey<S, `${A}${P}`>
+      >
     : T
-    : never
-export type OmitNegated<T extends PropertyKey> = T extends `no-${string}` ? never : T
-export type StripNegated<T extends PropertyKey> = T extends `no-${infer U}` ? U : T
-export type RequiredOrOptional<T, Required extends boolean> = Required extends true ? T : (T | undefined)
+  : never;
+export type OmitNegated<T extends PropertyKey> = T extends `no-${string}`
+  ? never
+  : T;
+export type StripNegated<T extends PropertyKey> = T extends `no-${infer U}`
+  ? U
+  : T;
 
-export type CombineInitFactoryDeps<T extends InitFactory<any, any>[], Acc extends Record<string, any> = {}> =
-    T extends [infer First, ...infer Rest extends InitFactory<any, any>[]]
-    ? First extends InitFactory<infer Container, any> ? CombineInitFactoryDeps<Rest, Acc & Container> : CombineInitFactoryDeps<Rest, Acc>
-    : Acc
-
-export type MapUnion<T extends string, U extends Record<T, any>> = U extends Record<T, any> ? U : never
+export type MapUnion<
+  T extends string,
+  U extends Record<T, any>
+> = U extends Record<T, any> ? U : never;
 
 export type KnownKey<T> = string extends T
-    ? never
-    : number extends T
-    ? never
-    : symbol extends T
-    ? never
-    : T
-export type KnownMappedKeys<T> = { [K in keyof T as KnownKey<K>]: T[K] } & {}
+  ? never
+  : number extends T
+  ? never
+  : symbol extends T
+  ? never
+  : T;
+export type KnownMappedKeys<T> = { [K in keyof T as KnownKey<K>]: T[K] } & {};
