@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       hollywood-di:
-        specifier: '>= 0.6.0'
-        version: 0.6.0
+        specifier: '>= 0.6.1'
+        version: 0.6.1
       sade:
         specifier: '>= 1.8.1'
         version: 1.8.1
@@ -699,8 +699,8 @@ packages:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
 
-  hollywood-di@0.6.0:
-    resolution: {integrity: sha512-59y8YgswcDin1D8c6iAVumVuKWuFWqZTHnZqeN8fhKznDZrltyyoeZwPMaqQE1gURu8VhnxIswakes+sGEPfXQ==}
+  hollywood-di@0.6.1:
+    resolution: {integrity: sha512-9LTNuwp2NXCPtBLqlyD3Fa1Is9kIh1rF8ylTp0QexTC7KIuTZaleGSSH05tEy3H0p7mIlj3llKLz+BVvz/CmkQ==}
 
   html-escaper@2.0.2:
     resolution: {integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==}
@@ -1972,7 +1972,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hollywood-di@0.6.0: {}
+  hollywood-di@0.6.1: {}
 
   html-escaper@2.0.2: {}
 
