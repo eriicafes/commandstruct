@@ -1,0 +1,5 @@
+---
+"commandstruct": patch
+---
+
+Update dependencies
