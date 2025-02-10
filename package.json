@@ -47,7 +47,7 @@
     "vitest": "^3.0.5"
   },
   "peerDependencies": {
-    "hollywood-di": ">= 0.6.0",
+    "hollywood-di": ">= 0.6.1",
     "sade": ">= 1.8.1"
   }
 }
