@@ -1,5 +1,5 @@
 export type Spread<T> = { [K in keyof T]: T[K] } & {};
-export type Merge<T, To> = T & Omit<To, keyof T>;
+export type Merge<T, U> = Omit<T, keyof U> & U;
 export type IsEmptyObject<T> = keyof T extends never ? true : false;
 
 type IsCapitalized<T extends string> = Uncapitalize<T> extends T ? false : true;
@@ -37,3 +37,5 @@ export type KnownKey<T> = string extends T
   ? never
   : T;
 export type KnownMappedKeys<T> = { [K in keyof T as KnownKey<K>]: T[K] } & {};
+
+export type Invalid<Message extends string> = never

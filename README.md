@@ -1,17 +1,17 @@
 # Commandstruct
 
-🛠️ Typesafe and modular CLIs with [Sade](https://github.com/lukeed/sade).
+🛠️ Typesafe and modular CLIs with [sade](https://github.com/lukeed/sade).
 
 Commandstruct is a simple and powerful tool for building fast and typesafe command-line applications.
 
-It supports CLI commands, sub-commands, positional arguments and flags. It also supports dependency injection using [Hollywood DI](https://github.com/eriicafes/hollywood-di).
+It supports CLI commands, sub-commands, positional arguments and flags. It also supports dependency injection using [getbox](https://github.com/eriicafes/getbox).
 
 ## Installation
 
-Commandstruct has both sade and hollywood-di as peer-dependencies so make sure to install them along side it.
+Commandstruct has both `sade` and `getbox` as peer-dependencies.
 
 ```sh
-npm i commandstruct sade hollywood-di
+npm i commandstruct
 ```
 
 ## Usage
@@ -19,9 +19,9 @@ npm i commandstruct sade hollywood-di
 ### A Regular Program
 
 ```ts
-import { arg, createProgram, createCommand, flag } from "commandstruct";
+import { arg, program, command, flag } from "commandstruct";
 
-const commitCmd = createCommand("commit")
+const commitCmd = command("commit")
   .describe("make a commit")
   .flags({
     message: flag("commit message").char("m").requiredParam("string"),
@@ -30,7 +30,7 @@ const commitCmd = createCommand("commit")
     console.log("committing with message", flags.message);
   });
 
-const pushCmd = createCommand("push")
+const pushCmd = command("push")
   .describe("push changes")
   .args({
     repo: arg(),
@@ -40,7 +40,7 @@ const pushCmd = createCommand("push")
     console.log("pushing repo", args.repo, "at", args.branch || "HEAD");
   });
 
-const prog = createProgram("notgit")
+const prog = program("notgit")
   .describe("not your regular git")
   .flags({ verbose: flag("display extra information on command run") })
   .commands(commitCmd, pushCmd)
@@ -52,19 +52,23 @@ prog.run();
 ### A Single Program
 
 ```ts
-import { arg, createSingleProgram, flag } from "commandstruct";
+import { arg, singleProgram, flag } from "commandstruct";
 
-const prog = createSingleProgram("mycat")
+const prog = singleProgram("mycat")
   .describe("print contents of file to stdout")
-  .args({ file: arg() })
-  .flags({ number: flag("number output lines").char("n") })
+  .args({ 
+    file: arg(),
+  })
+  .flags({
+    number: flag("number output lines").char("n"),
+  })
   .action(({ args, flags, restArgs }) => {
     console.log(
       "printing contents of file",
       args.file,
-      flags.n ? "with lines" : "without lines"
+      flags.n ? "with lines" : "without lines",
+      restArgs
     );
-    if (restArgs.length) console.log("maybe print these", restArgs);
   });
 
 prog.run();
@@ -76,14 +80,11 @@ A program defines it's commands and an optional default command.
 When running the program, one of it's commands must be executed otherwise you get a `"No command specified"` error if no default command is set. Program wide flags can be defined on the program.
 
 ```ts
-const prog = createProgram("notgit")
+const prog = program("notgit")
   .describe("not your regular git")
   .example("notgit commit -m 'my first commit'")
   .example("notgit push origin main")
   .version("v1.0.0")
-  .provide({
-    /** register tokens */
-  })
   .flags({
     /** program flags */
   })
@@ -97,14 +98,11 @@ const prog = createProgram("notgit")
 A single program unlike a regular program does not have any commands, the entire program executes as one command. A single program supports `args` and `action`.
 
 ```ts
-const prog = createSingleProgram("mycat")
+const prog = singleProgram("mycat")
   .describe("print contents of file to stdout")
   .example("mycat")
   .example("git push origin main")
   .version("v1.0.0")
-  .provide({
-    /** register tokens */
-  })
   .args({
     /** program args */
   })
@@ -125,19 +123,13 @@ const programFlags = {
   /** program flags */
 };
 
-const cmd = createCommand("commit")
+const cmd = command("commit")
   .describe("make a commit")
   .alias("cm", "com")
   .alias("comit")
   .example("git commit -m 'my first commit'")
   .example("git cm -m 'another commit")
-  .useFlags<typeof programFlags>()
-  .use<{
-    /** dependencies */
-  }>()
-  .provide({
-    /** register tokens */
-  })
+  .programFlags<typeof programFlags>()
   .subcommands(/** subcommands */)
   .args({
     /** command args */
@@ -145,8 +137,8 @@ const cmd = createCommand("commit")
   .flags({
     /** command flags */
   })
-  .action(({ args, flags, restArgs }, container) => {
-    /** command action */
+  .action(({ args, flags, restArgs }, box) => {
+    /** command action - box is the getbox Box instance */
   });
 ```
 
@@ -157,7 +149,7 @@ You can make any command or subcommand the default command. This will execute th
 ```ts
 import { commitCmd, pushCmd } from "./commands";
 
-const prog = createProgram("nogit")
+const prog = program("nogit")
   .commands(commitCmd, pushCmd)
   .default(commitCmd) // commitCmd will be executed by default
   .build();
@@ -168,7 +160,7 @@ const prog = createProgram("nogit")
 Positional arguments are declared in the order they should be provided. Optional arguments must be placed after required arguments.
 
 ```ts
-createCommand("example")
+command("example")
   .args({
     foo: arg(),
     bar: arg(),
@@ -193,7 +185,7 @@ Variadic arguments can be accessed using restArgs.
 By default flags are boolean values and default to false. Flag keys are also converted to kebab-case except when explicitly disabled using `.preserveCase()`.
 
 ```ts
-createCommand("example")
+command("example")
   .flags({
     foo: flag("foo description"),
     anotherFoo: flag("another foo description"),
@@ -215,7 +207,7 @@ createCommand("example")
 Allow passing flags with short character.
 
 ```ts
-createCommand("example")
+command("example")
   .flags({
     foo: flag("foo description").char("f"),
   })
@@ -229,13 +221,13 @@ createCommand("example")
 Accept values with flags.
 
 ```ts
-createCommand("example")
+command("example")
   .flags({
     foo: flag("foo description").requiredParam("string"),
     bar: flag("bar description").optionalParam("number"),
     baz: flag("baz description").optionalParam("array", ["1"]), // with default
   })
-  .action(({ flag }) => {
+  .action(({ flags }) => {
     /**
     flags: {
         foo: string;
@@ -246,6 +238,26 @@ createCommand("example")
   });
 ```
 
+CLI usage examples:
+
+```sh
+# String params
+example --foo "hello world"
+example --foo hello
+
+# Number params
+example --foo hello --bar 42
+example --foo hello --bar 3.14
+example --foo hello --bar -10
+
+# Array params (can be specified multiple times)
+example --foo hello --baz one
+example --foo hello --baz one --baz two --baz three
+
+# Mixed params
+example --foo hello --bar 100 --baz item1 --baz item2
+```
+
 ### Negated Flags
 
 Sade supports negating flags by supplying `--no-xxx` where `xxx` is the name of the flag. Flag values are `false` by default and passing `--no-xxx` would set the flag value to `false`, hence, this has no effect by default.
@@ -254,7 +266,7 @@ All these 3 methods adds the `--no-xxx` option to the command description but th
 
 ```ts
 // using withNegated
-createCommand("example")
+command("example")
   .flags({
     foo: flag("foo description").withNegated("negated description"),
   })
@@ -265,7 +277,7 @@ createCommand("example")
 
 ```ts
 // only negated flag
-createCommand("example")
+command("example")
   .flags({
     noFoo: flag("turn off foo description"),
     "no-bar": flag("turn off bar description"),
@@ -283,7 +295,7 @@ You may not be able to use only negated flag if you enable the `errorOnUnknown` 
 
 ```ts
 // both existing flag and negated flag
-createCommand("example")
+command("example")
   .flags({
     foo: flag("foo description"),
     noFoo: flag("turn off bar description"),
@@ -293,7 +305,7 @@ createCommand("example")
   });
 ```
 
-## Use Flags
+## Program Flags
 
 Use program flags from a command. The program flags can then be accessed in the command action.
 
@@ -302,8 +314,8 @@ const programFlags = {
   dryRun: flag("run command but do not commit results"),
 };
 
-const cmd = createCommand("example")
-  .useFlags<typeof programFlags>()
+const cmd = command("example")
+  .programFlags<typeof programFlags>()
   .flags({
     message: flag("commit message"),
   })
@@ -316,73 +328,57 @@ const cmd = createCommand("example")
     */
   });
 
-const prog = createProgram("test").flags(programFlags).commands(cmd).build();
+const prog = program("test").flags(programFlags).commands(cmd).build();
 ```
 
-## Use
+## Dependency Injection
 
-Define command dependencies. The command can then only be added as a command or subcommand to a program/command that satisfies it's dependencies. The command dependencies can be accessed in the command action.
+Commandstruct is designed to work with [getbox](https://github.com/eriicafes/getbox). Commands receive the Box instance as the second parameter to their action function, allowing them to retrieve dependencies.
 
-You can only call `use` once and only before calling `provide`.
+```sh
+npm i getbox
+```
+
+### Example
 
 ```ts
-interface Counter {
-  count: number;
-  increment(): void;
-}
+import { arg, command, program } from "commandstruct";
+import { Box } from "getbox";
 
-const cmd = createCommand("commit")
-  .use<{ counter: Counter }>()
-  .action((ctx, container) => {
-    /**
-    container: {
-         counter: Counter;
-    }
-    */
-  });
-
-class LinearCounter {
-  public count = 0;
-  public increment() {
-    this.count++;
+class Logger {
+  log(message: string) {
+    console.log(`[LOG] ${message}`);
   }
 }
 
-const prog = createProgram("test")
-  .flags(programFlags)
-  .provide({ counter: LinearCounter })
-  .commands(cmd)
-  .build();
-```
+class UserService {
+  constructor(private logger: Logger) {}
 
-## Provide
+  static init(box: Box) {
+    // Called automatically when box.get(UserService) is used
+    const logger = box.get(Logger);
+    return new UserService(logger);
+  }
 
-Provide creates a new child container. Registered tokens can then be used in the commmand action and in futher calls to `provide`. See more about register tokens in [Hollywood DI](https://github.com/eriicafes/hollywood-di#tokens).
-
-```ts
-import { defineInit } from "hollywood-di";
-import { createCommand } from "commandstruct";
-
-class Foo {}
-class Bar {
-  public static init = defineInit(Bar).args("foo");
-
-  constructor(public foo: Foo) {}
+  createUser(name: string) {
+    this.logger.log(`Creating user: ${name}`);
+  }
 }
 
-const cmd = createCommand("example")
-  .provide({
-    foo: Foo,
-    bar: Bar,
-  })
-  .action((ctx, container) => {
-    /**
-    container: {
-        foo: Foo;
-        bar: Bar;
-    }
-    */
+const createCmd = command("create")
+  .args({ name: arg() })
+  .action(({ args }, box) => {
+    // UserService is auto-initialized with Logger dependency
+    const service = box.get(UserService);
+    service.createUser(args.name);
   });
+
+// The program creates a default box automatically
+const prog = program("user-utils").commands(createCmd).build();
+
+// Or you can provide your own box
+const box = new Box();
+const prog2 = program("user-utils", box).commands(createCmd).build();
 ```
 
 ## Run
@@ -390,7 +386,7 @@ const cmd = createCommand("example")
 Run executes any sade program with some useful options.
 
 ```ts
-const prog = createProgram("test")
+const prog = program("test")
   .flags(/** program flags */)
   .commands(/** commands */)
   .build();
@@ -424,48 +420,12 @@ run(
 As a convenience, a run methods exists on the commandstruct program itself.
 
 ```ts
-const prog = createProgram("test")
+const prog = program("test")
   .flags(/** program flags */)
   .commands(/** commands */)
   .build();
 
 prog.run();
-```
-
-## Dependency Injection
-
-At the core commandstruct is designed to work with [Hollywood DI](https://github.com/eriicafes/hollywood-di). Commands can define their dependencies using `use`, programs and commands can register new tokens using `provide` which creates a child container.
-
-A root container can also be passed to the program.
-
-```ts
-import { Hollywood, defineInit } from "hollywood-di";
-import { createCommand, createProgram } from "commandstruct";
-
-class Foo {}
-class Bar {
-  public static init = defineInit(Bar).args("foo");
-
-  constructor(public foo: Foo) {}
-}
-
-const cmd = createCommand("example")
-  .use<{ foo: Foo }>()
-  .provide({ bar: Bar })
-  .action((ctx, container) => {
-    /**
-    container: {
-        bar: Bar;
-        foo: Foo;
-    }
-    */
-  });
-
-const container = Hollywood.create({
-  foo: Foo,
-});
-
-const prog = createProgram("test", container).commands(cmd).build();
 ```
 
 ## Incremental Adoption
@@ -474,7 +434,8 @@ Commandstruct can be added to an existing sade program.
 
 ```ts
 import sade from "sade";
-import { createCommand, flag, run } from "commandstruct";
+import { Box } from "getbox";
+import { command, flag, run } from "commandstruct";
 
 const prog = sade("notgit")
   .command("push <repo> [branch]")
@@ -483,7 +444,7 @@ const prog = sade("notgit")
     console.log("pushing repo", repo, "at", branch || "HEAD");
   });
 
-const cmd = createCommand("commit")
+const cmd = command("commit")
   .describe("make a commit")
   .flags({
     message: flag("commit message").char("m").requiredParam("string"),
@@ -492,7 +453,8 @@ const cmd = createCommand("commit")
     console.log("committing with message", flags.message);
   });
 
-cmd.command({ program: prog, programFlags: {}, container: undefined });
+const box = new Box();
+cmd.command(box, { program: prog, programFlags: {} });
 
 run(prog);
 ```
@@ -500,9 +462,9 @@ run(prog);
 A commandstruct program can also be further modified just like a regular sade program.
 
 ```ts
-import { createCommand, createProgram, flag, run } from "commandstruct";
+import { command, program, flag, run } from "commandstruct";
 
-const cmd = createCommand("commit")
+const cmd = command("commit")
   .describe("make a commit")
   .flags({
     message: flag("commit message").char("m").requiredParam("string"),
@@ -511,7 +473,7 @@ const cmd = createCommand("commit")
     console.log("committing with message", flags.message);
   });
 
-const prog = createProgram("notgit").commands(cmd).build().program(); // returns a new sade instance
+const prog = program("notgit").commands(cmd).build().program(); // returns a new sade instance
 
 prog
   .command("push <repo> [branch]")

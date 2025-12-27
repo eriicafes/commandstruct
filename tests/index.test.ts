@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, test, vi } from "vitest";
-import { createCommand, createProgram, createSingleProgram } from "../src";
+import { command, program, singleProgram } from "../src";
 import { withArgv } from "./utils";
 
 describe("Command", () => {
   it("executes command", () => {
     const fooAction = vi.fn();
-    const fooCmd = createCommand("foo").action(fooAction);
-    const cli = createProgram("test").commands(fooCmd).build();
+    const fooCmd = command("foo").action(fooAction);
+    const cli = program("test").commands(fooCmd).build();
 
     cli.run(undefined, withArgv("foo"));
     expect(fooAction).toBeCalledTimes(1);
@@ -14,7 +14,7 @@ describe("Command", () => {
 
   it("executes in single program mode", () => {
     const action = vi.fn();
-    const cli = createSingleProgram("test").action(action);
+    const cli = singleProgram("test").action(action);
 
     cli.run(undefined, withArgv(""));
     expect(action).toBeCalledTimes(1);
@@ -23,9 +23,9 @@ describe("Command", () => {
   it("executes subcommand", () => {
     const fooAction = vi.fn(),
       barAction = vi.fn();
-    const barCmd = createCommand("bar").action(barAction);
-    const fooCmd = createCommand("foo").subcommands(barCmd).action(fooAction);
-    const cli = createProgram("test").commands(fooCmd).build();
+    const barCmd = command("bar").action(barAction);
+    const fooCmd = command("foo").subcommands(barCmd).action(fooAction);
+    const cli = program("test").commands(fooCmd).build();
 
     cli.run(undefined, withArgv("foo bar"));
     expect(fooAction).toBeCalledTimes(0);
@@ -35,8 +35,8 @@ describe("Command", () => {
   describe("executes default command", () => {
     const fooAction = vi.fn(),
       barAction = vi.fn();
-    const fooCmd = createCommand("foo").action(fooAction);
-    const barCmd = createCommand("bar").action(barAction);
+    const fooCmd = command("foo").action(fooAction);
+    const barCmd = command("bar").action(barAction);
 
     beforeEach(() => {
       fooAction.mockReset();
@@ -44,7 +44,7 @@ describe("Command", () => {
     });
 
     test("with default first", () => {
-      const cli = createProgram("test")
+      const cli = program("test")
         .commands(fooCmd, barCmd)
         .default(fooCmd)
         .build();
@@ -55,7 +55,7 @@ describe("Command", () => {
     });
 
     test("with default last", () => {
-      const cli = createProgram("test")
+      const cli = program("test")
         .commands(barCmd, fooCmd)
         .default(fooCmd)
         .build();

@@ -1,50 +1,24 @@
-import {
-  AnyHollywood,
-  ContainerOptions,
-  Hollywood,
-  HollywoodOf,
-  InferContainer,
-  RegisterTokens,
-} from "hollywood-di";
 import sade, { Sade } from "sade";
-import { Subcommand } from "./command";
+import { Command } from "./command";
 import { Flag } from "./flag";
 import { run, RunOptions } from "./run";
 import { registerFlags } from "./utils";
+import { Box } from "getbox";
 
-type ProgramOptions<
-  Name extends string,
-  Flags extends Record<string, Flag>,
-  Container extends AnyHollywood | undefined,
-  Instances extends Container extends AnyHollywood
-    ? InferContainer<Container>
-    : {}
-> = {
+type ProgramOptions<Name extends string, Flags extends Record<string, Flag>> = {
   name: Name;
   version: string | undefined;
   description: string | undefined;
   examples: string[];
   flags: Flags;
-  container: Container;
-  commands: [HollywoodOf<Instances>, Subcommand<Flags, Instances>[]][];
-  default: Subcommand<any, any> | undefined;
+  commands: Command<any, any, any, Flags>[];
+  default: Command<any, any, any, Flags> | undefined;
 };
 
-export type AnyProgram = Program<any, any, any>;
+export type AnyProgram = Program<any, any>;
 
-export class Program<
-  Name extends string,
-  Flags extends Record<string, Flag>,
-  Container extends AnyHollywood | undefined
-> {
-  constructor(
-    private options: ProgramOptions<
-      Name,
-      Flags,
-      Container,
-      Container extends AnyHollywood ? InferContainer<Container> : {}
-    >
-  ) {}
+export class Program<Name extends string, Flags extends Record<string, Flag>> {
+  constructor(private box: Box, private options: ProgramOptions<Name, Flags>) {}
 
   public program(): Sade {
     const program = sade(this.options.name);
@@ -54,15 +28,12 @@ export class Program<
 
     registerFlags(program, this.options.flags);
 
-    for (const [container, commands] of this.options.commands) {
-      for (const command of commands) {
-        command.command({
-          program,
-          programFlags: this.options.flags,
-          defaultCmd: this.options.default,
-          container: container,
-        });
-      }
+    for (const command of this.options.commands) {
+      command.command(this.box, {
+        program,
+        programFlags: this.options.flags,
+        defaultCmd: this.options.default,
+      });
     }
     return program;
   }
@@ -72,26 +43,16 @@ export class Program<
   }
 }
 
-class ProgramBuilder<
-  Name extends string,
-  Flags extends Record<string, Flag>,
-  Container extends AnyHollywood | undefined
-> {
-  private options: ProgramOptions<
-    Name,
-    Flags,
-    Container,
-    Container extends AnyHollywood ? InferContainer<Container> : {}
-  >;
+class ProgramBuilder<Name extends string, Flags extends Record<string, Flag>> {
+  private options: ProgramOptions<Name, Flags>;
 
-  constructor(name: Name, container: Container) {
+  constructor(private box: Box, name: Name) {
     this.options = {
       name,
       version: undefined,
       description: undefined,
       examples: [],
       flags: {} as Flags,
-      container,
       commands: [],
       default: undefined,
     };
@@ -117,83 +78,25 @@ class ProgramBuilder<
   >(flags: F) {
     this.options.flags = flags as unknown as Flags;
     return this as unknown as Record<string, Flag> extends Flags
-      ? ProgramBuilder<Name, F, Container>
+      ? ProgramBuilder<Name, F>
       : never;
   }
 
-  public provide<T extends Record<string, any> = {}>(
-    tokens: RegisterTokens<
-      T,
-      Container extends AnyHollywood ? InferContainer<Container> : {}
-    >,
-    options?: ContainerOptions
-  ) {
-    let parent = this.options.container;
-    if (parent)
-      this.options.container = Hollywood.createWithParent(
-        parent,
-        tokens as RegisterTokens<T, InferContainer<AnyHollywood>>,
-        options
-      ) as Container;
-    else
-      this.options.container = Hollywood.create(
-        tokens as RegisterTokens<T, {}>,
-        options
-      ) as Container;
-    this.options.commands.push([
-      this.options.container as HollywoodOf<
-        Container extends AnyHollywood ? InferContainer<Container> : {}
-      >,
-      [],
-    ]);
-    return this as unknown as ProgramBuilder<
-      Name,
-      Flags,
-      Container extends AnyHollywood
-        ? Hollywood<T, InferContainer<Container>>
-        : Hollywood<T, {}>
-    >;
-  }
-
-  public commands<
-    C extends Subcommand<
-      Flags,
-      Container extends AnyHollywood ? InferContainer<Container> : {}
-    >[]
-  >(...commands: C) {
-    if (!this.options.commands.length)
-      this.options.commands.push([
-        this.options.container as HollywoodOf<
-          Container extends AnyHollywood ? InferContainer<Container> : {}
-        >,
-        [],
-      ]);
-    const [, subcommands] =
-      this.options.commands[this.options.commands.length - 1];
-    subcommands.push(...commands);
+  public commands<C extends Command<any, any, any, Flags>[]>(...commands: C) {
+    this.options.commands.push(...commands);
     return this;
   }
 
-  public default(command: Subcommand<any, any>) {
+  public default(command: Command<any, any, any, Flags>) {
     this.options.default = command;
     return this;
   }
 
   public build() {
-    return new Program<Name, Flags, Container>(this.options);
+    return new Program<Name, Flags>(this.box, this.options);
   }
 }
 
-export function createProgram<Name extends string>(
-  name: Name
-): ProgramBuilder<Name, {}, undefined>;
-export function createProgram<
-  Name extends string,
-  Container extends AnyHollywood
->(name: Name, container: Container): ProgramBuilder<Name, {}, Container>;
-export function createProgram<
-  Name extends string,
-  Container extends AnyHollywood
->(name: Name, container?: Container) {
-  return new ProgramBuilder(name, container);
+export function program<Name extends string>(name: Name, box = new Box()) {
+  return new ProgramBuilder(box, name);
 }

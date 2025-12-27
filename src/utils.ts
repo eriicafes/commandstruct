@@ -2,6 +2,7 @@ import { Sade } from "sade";
 import { Arg, ParsedArgs } from "./arg";
 import { CommandError } from "./errors";
 import { Flag, ParsedFlags } from "./flag";
+import { Merge } from "./types";
 
 export function registerFlags(program: Sade, flags: Record<string, Flag>) {
   for (const [name, flag] of Object.entries(flags)) {
@@ -97,8 +98,11 @@ export function commandUsage(
 
 export function commandContext<
   Args extends Record<string, Arg> = {},
-  Flags extends Record<string, Flag> = {}
->(args: Args, flags: Flags, fnArgs: any[]) {
+  Flags extends Record<string, Flag> = {},
+  ProgramFlags extends Record<string, Flag> = {}
+>(args: Args, flags: Flags, programFlags: ProgramFlags, fnArgs: any[]) {
+  const mergedFlags = { ...programFlags, ...flags }
+  
   // get args from function arguments and convert to object
   const _args = Object.keys(args).reduce((acc, name, index) => {
     acc[name] = fnArgs[index];
@@ -109,7 +113,7 @@ export function commandContext<
   const { _, ...opts } = fnArgs[fnArgs.length - 1];
 
   // validate flags
-  for (const [name, flag] of Object.entries(flags)) {
+  for (const [name, flag] of Object.entries(mergedFlags)) {
     const flagObj = Flag.toObject(flag);
     const key = flagObj.preserveCase ? name : Flag.toKebabCase(name);
     const value = opts[key];
@@ -229,7 +233,7 @@ export function commandContext<
 
   return {
     args: _args as ParsedArgs<Args>,
-    flags: opts as ParsedFlags<Flags>,
+    flags: opts as ParsedFlags<Merge<ProgramFlags, Flags>>,
     restArgs: _ as string[],
   };
 }

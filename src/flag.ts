@@ -134,10 +134,6 @@ export class Flag<T extends TFlag = TFlag> {
       })
       .join("");
   }
-
-  public static toCamelCase(str: string) {
-    return str.replace(/-./g, (x) => x[1].toUpperCase());
-  }
 }
 
 export function flag(description: string) {

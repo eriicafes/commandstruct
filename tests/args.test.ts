@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { arg, createCommand, createProgram } from "../src";
+import { arg, command, program } from "../src";
 import { withArgv } from "./utils";
 
 describe("Args", () => {
@@ -18,13 +18,13 @@ describe("Args", () => {
 
   it("parses positional args", () => {
     const fooAction = vi.fn();
-    const fooCmd = createCommand("foo")
+    const fooCmd = command("foo")
       .args({
         bar: arg(),
         baz: arg(),
       })
       .action(fooAction);
-    const cli = createProgram("test").commands(fooCmd).build();
+    const cli = program("test").commands(fooCmd).build();
 
     cli.run(undefined, withArgv("foo one two"));
     expect(fooAction.mock.lastCall?.[0].args).toStrictEqual({
@@ -35,13 +35,13 @@ describe("Args", () => {
 
   it("parses optional positional args", () => {
     const fooAction = vi.fn();
-    const fooCmd = createCommand("foo")
+    const fooCmd = command("foo")
       .args({
         bar: arg(),
         baz: arg().optional(),
       })
       .action(fooAction);
-    const cli = createProgram("test").commands(fooCmd).build();
+    const cli = program("test").commands(fooCmd).build();
 
     cli.run(undefined, withArgv("foo one"));
     expect(fooAction.mock.lastCall?.[0].args).toStrictEqual({
@@ -52,13 +52,13 @@ describe("Args", () => {
 
   it("throws on insufficient arguments", () => {
     const fooAction = vi.fn();
-    const fooCmd = createCommand("foo")
+    const fooCmd = command("foo")
       .args({
         bar: arg(),
         baz: arg().optional(),
       })
       .action(fooAction);
-    const cli = createProgram("test").commands(fooCmd).build();
+    const cli = program("test").commands(fooCmd).build();
 
     cli.run(undefined, withArgv("foo"));
     expect(fooAction).toBeCalledTimes(0);
@@ -70,13 +70,13 @@ describe("Args", () => {
 
   it("throws on required arg after an optional arg", () => {
     expect(() => {
-      const cmd = createCommand("foo")
+      const cmd = command("foo")
         .args({
           bar: arg().optional(),
           baz: arg(),
         })
         .action(() => {});
-      createProgram("test").commands(cmd).build().program();
+      program("test").commands(cmd).build().program();
     }).toThrow("cannot appear after an optional argument");
   });
 });
