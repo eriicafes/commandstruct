@@ -1,7 +1,7 @@
 export { arg, Arg } from "./arg";
-export { AnyCommand, Command, command } from "./command";
+export { type AnyCommand, Command, command } from "./command";
 export { CommandError } from "./errors";
 export { flag, Flag } from "./flag";
-export { AnyProgram, Program, program } from "./program";
-export { run, RunOptions } from "./run";
-export { AnySingleProgram, SingleProgram, singleProgram } from "./single";
+export { type AnyProgram, Program, program } from "./program";
+export { run, type RunOptions } from "./run";
+export { type AnySingleProgram, SingleProgram, singleProgram } from "./single";

@@ -4,24 +4,25 @@ import { withArgv } from "./utils";
 import { Box } from "getbox";
 
 describe("Container", () => {
-  let counterInitTrap: ReturnType<typeof vi.fn>;
-  let fooAction: ReturnType<typeof vi.fn>;
-  let barAction: ReturnType<typeof vi.fn>;
+  let counterInitTrap: ReturnType<typeof vi.fn<() => void>>;
+  let fooAction: ReturnType<typeof vi.fn<(...args: any[]) => void>>;
+  let barAction: ReturnType<typeof vi.fn<(...args: any[]) => void>>;
   let box: Box;
-
-  class Counter {
-    public count = 0;
-
-    constructor() {
-      counterInitTrap();
-    }
-  }
+  let Counter: new () => { count: number };
 
   beforeEach(() => {
-    counterInitTrap = vi.fn();
-    fooAction = vi.fn();
-    barAction = vi.fn();
+    counterInitTrap = vi.fn<() => void>();
+    fooAction = vi.fn<(...args: any[]) => void>();
+    barAction = vi.fn<(...args: any[]) => void>();
     box = new Box();
+
+    Counter = class {
+      public count = 0;
+
+      constructor() {
+        counterInitTrap();
+      }
+    };
   });
 
   it("creates a default box when not provided", () => {
