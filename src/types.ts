@@ -1,6 +1,5 @@
 export type Spread<T> = { [K in keyof T]: T[K] } & {};
 export type Merge<T, U> = Omit<T, keyof U> & U;
-export type IsEmptyObject<T> = keyof T extends never ? true : false;
 
 type IsCapitalized<T extends string> = Uncapitalize<T> extends T ? false : true;
 export type CamelToKebabCaseKey<
