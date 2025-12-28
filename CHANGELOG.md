@@ -1,5 +1,11 @@
 # commandstruct
 
+## 1.0.0
+
+### Major Changes
+
+- 673e577: Release v1
+
 ## 0.4.0
 
 ### Minor Changes
