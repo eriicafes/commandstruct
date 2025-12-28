@@ -51,7 +51,7 @@
     "vitest": "^4.0.16"
   },
   "peerDependencies": {
-    "getbox": ">= 0.2.0",
+    "getbox": ">= 1.0.0 <2.0.0",
     "sade": ">= 1.8.1"
   }
 }
