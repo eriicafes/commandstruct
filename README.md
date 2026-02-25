@@ -56,7 +56,7 @@ import { arg, singleProgram, flag } from "commandstruct";
 
 const prog = singleProgram("mycat")
   .describe("print contents of file to stdout")
-  .args({ 
+  .args({
     file: arg(),
   })
   .flags({
@@ -67,7 +67,7 @@ const prog = singleProgram("mycat")
       "printing contents of file",
       args.file,
       flags.n ? "with lines" : "without lines",
-      restArgs
+      restArgs,
     );
   });
 
@@ -354,11 +354,7 @@ class Logger {
 class UserService {
   constructor(private logger: Logger) {}
 
-  static init(box: Box) {
-    // Called automatically when box.get(UserService) is used
-    const logger = box.get(Logger);
-    return new UserService(logger);
-  }
+  static init = Box.init(UserService).get(Logger);
 
   createUser(name: string) {
     this.logger.log(`Creating user: ${name}`);
@@ -373,10 +369,10 @@ const createCmd = command("create")
     service.createUser(args.name);
   });
 
-// The program creates a default box automatically
+// The program creates a default Box instance
 const prog = program("user-utils").commands(createCmd).build();
 
-// Or you can provide your own box
+// You can provide your own Box instance
 const box = new Box();
 const prog2 = program("user-utils", box).commands(createCmd).build();
 ```
@@ -407,7 +403,7 @@ run(
       console.error(err);
     },
   },
-  process.argv
+  process.argv,
 );
 ```
 
